@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Chat em Tempo Real</title>
+    <style>
+        #chatForm {
+            display: flex;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Chat em Tempo Real</h1>
+
+    <div id="chatMessages"></div>
+
+    <form id="chatForm">
+        <input type="text" id="messageInput" placeholder="Digite sua mensagem">
+        <button type="submit">Enviar</button>
+    </form>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.1.2/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/node-forge@1.0.0/dist/forge.min.js"></script>
+    <script>
+
+
+        nome = prompt("Qual o seu nome de usuário?");
+
+        const socket = io();
+
+        let publicKey;
+        let privateKey;
+
+        // Manipulador de mensagem recebida
+        socket.on('NOVA_MENSAGEM', (message) => {
+
+            const privateKeyObject = forge.pki.privateKeyFromPem(privateKey);
+
+            const encryptedBytes = forge.util.decode64(message.message);
+            const decryptedBytes = privateKeyObject.decrypt(encryptedBytes);
+            const decryptedMessage = forge.util.bytesToUtf8(decryptedBytes);
+
+            const chatMessages = document.getElementById('chatMessages');
+            const messageElement = document.createElement('div');
+            messageElement.textContent = `${message.nome}: ${decryptedMessage}`;
+            chatMessages.appendChild(messageElement);
+
+        });
+
+        socket.on('CHAVE_PUBLICA', (receivedPublicKey) => {
+            publicKey = receivedPublicKey;
+            console.log(publicKey.toString())
+        });
+
+        socket.on('CHAVE_PRIVADA', (receivedPrivateKey) => {
+            privateKey = receivedPrivateKey;
+            console.log(receivedPrivateKey)
+        });
+
+        socket.on('RECUPERAR_CHAT', (mensagens) => {
+            mensagens.forEach(message => {
+                const chatMessages = document.getElementById('chatMessages');
+                const messageElement = document.createElement('div');
+                messageElement.textContent = `${message.nome}: ${message.message}`;
+                chatMessages.appendChild(messageElement);
+            })
+        });
+
+        // Manipulador de envio de mensagem
+        const chatForm = document.getElementById('chatForm');
+        const messageInput = document.getElementById('messageInput');
+
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const message = messageInput.value;
+
+            const publicKeyObject = forge.pki.publicKeyFromPem(publicKey);
+            const encryptedMessageBytes = publicKeyObject.encrypt(message, 'RSA-OAEP');
+            const encryptedMessage = forge.util.encode64(encryptedMessageBytes); F
+
+            socket.emit('NOVA_MENSAGEM', { nome, message: encryptedMessage });
+            messageInput.value = '';
+        });
+    </script>
+</body>
+
+</html>
