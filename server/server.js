@@ -3,17 +3,13 @@ const http = require('http');
 const express = require('express');
 const socketIO = require('socket.io');
 const path = require('path')
-const crypto = require('crypto')
 
 // Configurar o servidor HTTP e o aplicativo Express
 const app = express();
 const server = http.createServer(app);
 
 let mensagens = [];
-
-const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-  modulusLength: 4096
-});
+let numUsers = 0;
 
 // Inicializar o Socket.IO e definir a origem permitida (opcional)
 const io = socketIO(server, {
@@ -32,27 +28,24 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
   console.log('Novo usuário conectado');
 
-  socket.emit('CHAVE_PUBLICA', publicKey);
-  socket.emit('CHAVE_PRIVADA', privateKey);
+  numUsers += 1
+  io.emit("NUM_USERS", numUsers)
+
   socket.emit('RECUPERAR_CHAT', mensagens)
 
   // Manipulador de mensagens recebidas
   socket.on('NOVA_MENSAGEM', (message) => {
-    console.log(`Mensagem recebida: ${message.nome}: ${message.message}`);
-
+    console.log(`Mensagem recebida: ${message.nome}: ${message.conteudo}`);
     mensagens.push(message)
-
-    const mensagemEncriptada = crypto.publicEncrypt(publicKey, Buffer.from(message.message)).toString('base64');
-
-    mensagens.push(mensagemEncriptada);
-
     // Enviar a mensagem recebida para todos os clientes conectados
-    io.emit('NOVA_MENSAGEM', {nome: message.nome, message: mensagemEncriptada});
+    io.emit('NOVA_MENSAGEM', message);
   });
 
   // Manipulador de desconexões
   socket.on('disconnect', () => {
     console.log('Usuário desconectado');
+    numUsers -= 1
+    io.emit("NUM_USERS", numUsers)
   });
 
 });
